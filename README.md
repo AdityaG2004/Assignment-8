@@ -1,8 +1,10 @@
-# Z-bus Matrix Building and Modification (MATLAB)
+# Z-bus Matrix Building and Modification
 
 EE315 Power Systems – Project/Assignment 8
 
-A generalized MATLAB program to calculate the Z-bus matrix of an N-bus power system and modify it for any change in network topology.
+**Live portal:** https://adityag2004.github.io/Assignment-8/
+
+A generalized MATLAB program and web portal to calculate the Z-bus matrix of an N-bus power system and modify it for any change in network topology.
 
 ## How it works
 1. Insert the elements of an N-bus power system.
@@ -20,6 +22,11 @@ A generalized MATLAB program to calculate the Z-bus matrix of an N-bus power sys
 To **remove** an element, add it again with **negative** impedance (−Zb).
 
 ## Usage
+
+### Web portal
+Open https://adityag2004.github.io/Assignment-8/, enter the elements, click **Build Z-bus**, then enter a change and click **Apply change**. Impedances are written as `0.25j`, `j0.25` or `0.1+0.2j`.
+
+### MATLAB
 Run in MATLAB:
 ```matlab
 zbus_program

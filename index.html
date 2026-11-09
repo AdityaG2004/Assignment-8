@@ -1,0 +1,483 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Z-bus Building and Modification</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#E9EDF0;
+  --sheet:#F8FAFB;
+  --ink:#16232E;
+  --ink-soft:#54646F;
+  --rule:#C2CBD2;
+  --copper:#A65A28;
+  --teal:#186A7E;
+  --warn:#8C2F2F;
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{
+  margin:0;
+  background:var(--paper);
+  color:var(--ink);
+  font-family:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  font-size:15px;
+  line-height:1.5;
+}
+.mono,input,table.z{font-family:"IBM Plex Mono",ui-monospace,"SF Mono",Menlo,monospace;font-variant-numeric:tabular-nums}
+.wrap{max-width:1180px;margin:0 auto;padding:0 20px}
+:focus-visible{outline:2px solid var(--teal);outline-offset:2px}
+
+/* ---------- masthead ---------- */
+header.top{border-bottom:1px solid var(--rule);background:var(--sheet)}
+header.top .wrap{padding-top:26px;padding-bottom:22px}
+h1{margin:0;font-size:30px;font-weight:600;letter-spacing:-0.015em}
+header.top p{margin:6px 0 0;max-width:68ch;color:var(--ink-soft)}
+
+/* ---------- layout ---------- */
+main.wrap{display:grid;grid-template-columns:380px 1fr;gap:20px;padding-top:20px;padding-bottom:40px;align-items:start}
+@media (max-width:920px){main.wrap{grid-template-columns:1fr}}
+.col{display:flex;flex-direction:column;gap:20px;min-width:0}
+section.panel{background:var(--sheet);border:1px solid var(--rule);padding:18px 18px 20px}
+h2{margin:0 0 4px;font-size:16px;font-weight:600}
+.hint{margin:0 0 14px;color:var(--ink-soft);font-size:13.5px}
+
+/* ---------- element table ---------- */
+table.el{width:100%;border-collapse:collapse}
+table.el th{font-weight:500;font-size:13px;color:var(--ink-soft);text-align:left;padding:0 6px 6px 0;border-bottom:1px solid var(--rule)}
+table.el td{padding:4px 6px 4px 0;vertical-align:middle}
+table.el td.n{color:var(--ink-soft);font-size:13px;width:22px}
+input{
+  width:100%;font-size:14px;color:var(--ink);background:transparent;
+  border:0;border-bottom:1px solid var(--rule);padding:5px 2px;border-radius:0;
+}
+input:hover{border-bottom-color:var(--ink-soft)}
+input:focus{outline:none;border-bottom:2px solid var(--teal);padding-bottom:4px}
+input.bad{border-bottom:2px solid var(--warn);padding-bottom:4px;color:var(--warn)}
+.bus-in{max-width:56px}
+button{font:inherit;font-size:14px;cursor:pointer;border-radius:0}
+button.del{background:none;border:0;color:var(--ink-soft);font-size:18px;line-height:1;padding:2px 6px}
+button.del:hover{color:var(--warn)}
+.actions{display:flex;gap:10px;align-items:center;margin-top:14px;flex-wrap:wrap}
+button.primary{background:var(--ink);color:var(--sheet);border:1px solid var(--ink);padding:8px 16px;font-weight:500}
+button.primary:hover{background:#25394A}
+button.primary:disabled{background:var(--rule);border-color:var(--rule);color:var(--ink-soft);cursor:not-allowed}
+button.plain{background:none;border:1px solid var(--rule);color:var(--ink);padding:7px 12px}
+button.plain:hover{border-color:var(--ink-soft)}
+button.link{background:none;border:0;color:var(--teal);padding:0;text-decoration:underline;text-underline-offset:3px}
+.count{margin-left:auto;color:var(--ink-soft);font-size:13px}
+.msg{margin:12px 0 0;font-size:13.5px;min-height:0}
+.msg.err{color:var(--warn)}
+.msg.ok{color:var(--teal)}
+
+/* ---------- change form ---------- */
+.change-row{display:grid;grid-template-columns:64px 64px 1fr;gap:12px}
+.change-row label{font-size:13px;color:var(--ink-soft);display:block}
+
+/* ---------- step list ---------- */
+.steps h3{font-size:13px;font-weight:500;color:var(--ink-soft);margin:14px 0 4px}
+ol.steps-list{list-style:none;margin:0;padding:0}
+ol.steps-list button{
+  display:grid;grid-template-columns:26px 58px 1fr;gap:6px;align-items:baseline;width:100%;
+  text-align:left;background:none;border:0;border-left:3px solid transparent;padding:6px 6px 6px 8px;color:var(--ink);font-size:13.5px;
+}
+ol.steps-list button:hover{background:var(--paper)}
+ol.steps-list button[aria-current="true"]{border-left-color:var(--copper);background:var(--paper)}
+.steps-list .k{color:var(--ink-soft);font-family:"IBM Plex Mono",monospace;font-size:12.5px}
+.steps-list .t{font-weight:600}
+.empty{color:var(--ink-soft);font-size:13.5px;margin:6px 0 0}
+
+/* ---------- stage: network + verdict ---------- */
+.stage{background:var(--ink);color:var(--sheet);border:1px solid var(--ink)}
+.verdict{padding:22px 24px}
+.verdict .where{color:#9FB0BC;font-size:13px;margin:0}
+.verdict .type{font-size:44px;font-weight:600;letter-spacing:-0.02em;line-height:1.05;margin:4px 0 6px}
+.verdict .type.none{font-size:22px;font-weight:500;color:#9FB0BC}
+.verdict .desc{margin:0 0 14px;font-size:15px;color:#E4EAEE}
+.verdict .formula{font-family:"IBM Plex Mono",monospace;font-size:12.5px;line-height:1.7;color:#C9D3DA;margin:0;border-top:1px solid #34495A;padding-top:12px}
+.verdict .formula b{color:#E8A57A;font-weight:500}
+
+/* ---------- matrix ---------- */
+.matrix-head{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
+.matrix-head h2{margin:0}
+.matrix-head .cap{color:var(--ink-soft);font-size:13.5px}
+.scroll{overflow-x:auto;margin-top:12px}
+table.z{border-collapse:collapse;font-size:13.5px}
+table.z th{font-weight:500;color:var(--ink-soft);padding:6px 12px;text-align:right;font-size:12.5px;white-space:nowrap}
+table.z thead th{border-bottom:1px solid var(--rule)}
+table.z tbody th{border-right:1px solid var(--rule)}
+table.z td{padding:6px 12px;text-align:right;white-space:nowrap}
+table.z td.chg{background:rgba(166,90,40,.13);color:#7A3F17}
+table.z td.new{background:rgba(24,106,126,.12);color:#0F4F5F}
+@media (prefers-reduced-motion:no-preference){
+  table.z td.flash{animation:flash .9s ease-out}
+  @keyframes flash{from{background:rgba(166,90,40,.45)}}
+}
+.legend{display:flex;gap:18px;flex-wrap:wrap;margin-top:12px;font-size:13px;color:var(--ink-soft)}
+.legend span::before{content:"";display:inline-block;width:12px;height:12px;margin-right:6px;vertical-align:-1px}
+.legend .lc::before{background:rgba(166,90,40,.25)}
+.legend .ln::before{background:rgba(24,106,126,.22)}
+
+footer{border-top:1px solid var(--rule);color:var(--ink-soft);font-size:13px}
+footer .wrap{padding-top:16px;padding-bottom:24px}
+footer a{color:var(--teal)}
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="wrap">
+    <h1>Z-bus building and modification</h1>
+    <p>Enter the elements of an N-bus power system to build its Z-bus matrix, then change the network. Each change is classified as Type 1 to 4 and the matrix is modified without inverting Y-bus.</p>
+  </div>
+</header>
+
+<main class="wrap">
+  <div class="col">
+
+    <section class="panel" aria-labelledby="h-sys">
+      <h2 id="h-sys">Power system</h2>
+      <p class="hint">One row per element. Bus 0 is the reference. Impedance in per unit, written as <span class="mono">0.25j</span>, <span class="mono">j0.25</span> or <span class="mono">0.1+0.2j</span>.</p>
+      <table class="el">
+        <thead><tr><th></th><th>From</th><th>To</th><th>Impedance</th><th><span class="sr" hidden>Remove</span></th></tr></thead>
+        <tbody id="rows"></tbody>
+      </table>
+      <div class="actions">
+        <button class="plain" id="addRow" type="button">Add element</button>
+        <span class="count" id="count"></span>
+      </div>
+      <div class="actions">
+        <button class="primary" id="build" type="button">Build Z-bus</button>
+        <button class="link" id="clear" type="button">Clear</button>
+      </div>
+      <p class="msg" id="buildMsg" role="status"></p>
+    </section>
+
+    <section class="panel" aria-labelledby="h-chg">
+      <h2 id="h-chg">Change the network</h2>
+      <p class="hint">Use a new bus number to add a new bus. Enter a negative impedance to remove an existing element.</p>
+      <div class="change-row">
+        <div><label for="cp">From</label><input id="cp" class="bus-in" inputmode="numeric" autocomplete="off"></div>
+        <div><label for="cq">To</label><input id="cq" class="bus-in" inputmode="numeric" autocomplete="off"></div>
+        <div><label for="cz">Impedance</label><input id="cz" autocomplete="off"></div>
+      </div>
+      <div class="actions">
+        <button class="primary" id="apply" type="button" disabled>Apply change</button>
+      </div>
+      <p class="msg" id="chgMsg" role="status"></p>
+    </section>
+
+    <section class="panel steps" aria-labelledby="h-steps">
+      <div class="steps-head">
+        <h2 id="h-steps">Steps</h2>
+      </div>
+      <div id="steps"><p class="empty">Build the Z-bus to see each step here.</p></div>
+    </section>
+
+  </div>
+
+  <div class="col">
+    <div class="stage" aria-live="polite">
+      <div class="verdict" id="verdict"></div>
+    </div>
+
+    <section class="panel" aria-labelledby="h-z">
+      <div class="matrix-head">
+        <h2 id="h-z">Z-bus matrix</h2>
+        <span class="cap" id="zcap"></span>
+      </div>
+      <div class="scroll"><table class="z" id="ztab"></table></div>
+      <div class="legend"><span class="lc">Changed by this step</span><span class="ln">New bus</span></div>
+    </section>
+
+  </div>
+</main>
+
+<footer>
+  <div class="wrap">EE315 Power Systems, Project/Assignment 8. The MATLAB version of this program, <span class="mono">zbus_program.m</span>, is in the <a href="https://github.com/adityag2004/Assignment-8">GitHub repository</a>.</div>
+</footer>
+
+<script>
+/* ===================== CORE (pure functions) ===================== */
+const cx = (re, im = 0) => ({ re, im });
+const cadd = (a, b) => cx(a.re + b.re, a.im + b.im);
+const csub = (a, b) => cx(a.re - b.re, a.im - b.im);
+const cmul = (a, b) => cx(a.re * b.re - a.im * b.im, a.re * b.im + a.im * b.re);
+const cdiv = (a, b) => { const d = b.re * b.re + b.im * b.im; return cx((a.re * b.re + a.im * b.im) / d, (a.im * b.re - a.re * b.im) / d); };
+const cneg = a => cx(-a.re, -a.im);
+const cabs = a => Math.hypot(a.re, a.im);
+
+// Parse "0.25j", "j0.25", "0.1+0.2j", "0.1+j0.2", "-0.5i", "2" -> complex, or null
+function parseZ(str) {
+  let s = String(str).trim().toLowerCase().replace(/\s+/g, '').replace(/\*/g, '').replace(/i/g, 'j');
+  if (!s) return null;
+  const terms = s.split(/(?<=[^e+-])(?=[+-])/);
+  let re = 0, im = 0, nRe = 0, nIm = 0;
+  for (let t of terms) {
+    let sign = 1;
+    if (t[0] === '+' || t[0] === '-') { if (t[0] === '-') sign = -1; t = t.slice(1); }
+    if (!t) return null;
+    const nj = (t.match(/j/g) || []).length;
+    if (nj > 1) return null;
+    if (nj === 1) {
+      if (!(t.startsWith('j') || t.endsWith('j'))) return null;
+      const v = t.replace('j', '');
+      const num = v === '' ? 1 : Number(v);
+      if (!isFinite(num) || v === '.') return null;
+      im += sign * num; nIm++;
+    } else {
+      const num = Number(t);
+      if (!isFinite(num)) return null;
+      re += sign * num; nRe++;
+    }
+  }
+  if (nRe > 1 || nIm > 1) return null;
+  return cx(re, im);
+}
+
+// Same format as the MATLAB program
+function fmt(z) {
+  const r = Math.abs(z.re) < 1e-10 ? 0 : z.re, i = Math.abs(z.im) < 1e-10 ? 0 : z.im;
+  if (i === 0) return r.toFixed(4);
+  if (r === 0) return i.toFixed(4) + 'j';
+  return r.toFixed(4) + (i >= 0 ? '+' : '-') + Math.abs(i).toFixed(4) + 'j';
+}
+
+// state = { Z: n x n complex (index = bus-1), ex: bool[n] (bus in network) }
+function modify(st, p, q, zb) {
+  const Z = st.Z.map(r => r.map(c => cx(c.re, c.im)));
+  const ex = st.ex.slice();
+  const known = b => b === 0 || (b <= ex.length && ex[b - 1]);
+  if (!Number.isInteger(p) || !Number.isInteger(q) || p < 0 || q < 0)
+    return { error: 'Bus numbers must be whole numbers, with 0 for the reference.' };
+  if (p === q) return { error: 'An element needs two different buses.' };
+  if (!zb || cabs(zb) < 1e-12) return { error: 'Impedance cannot be zero.' };
+  let kp = known(p), kq = known(q);
+  if (!kp && !kq) return { error: `Neither bus ${p} nor bus ${q} is in the network yet. Connect one of them first.` };
+  if (!kp) { [p, q] = [q, p]; [kp, kq] = [kq, kp]; }
+
+  if (!kq) {                                   // q is a new bus
+    while (ex.length < q) {
+      ex.push(false);
+      Z.forEach(r => r.push(cx(0)));
+      Z.push(Array.from({ length: ex.length }, () => cx(0)));
+    }
+    const n = ex.length;
+    let type;
+    if (p === 0) {                             // Type 1
+      type = 1;
+      for (let j = 0; j < n; j++) { Z[q - 1][j] = cx(0); Z[j][q - 1] = cx(0); }
+      Z[q - 1][q - 1] = cx(zb.re, zb.im);
+    } else {                                   // Type 2
+      type = 2;
+      for (let j = 0; j < n; j++) Z[q - 1][j] = cx(Z[p - 1][j].re, Z[p - 1][j].im);
+      for (let j = 0; j < n; j++) Z[j][q - 1] = cx(Z[j][p - 1].re, Z[j][p - 1].im);
+      Z[q - 1][q - 1] = cadd(Z[p - 1][p - 1], zb);
+    }
+    ex[q - 1] = true;
+    return { state: { Z, ex }, type, p, q, zb };
+  }
+
+  if (p === 0) [p, q] = [q, p];                // both known: Kron reduction
+  const idx = []; ex.forEach((e, i) => { if (e) idx.push(i); });
+  let c, zth, type;
+  if (q === 0) {                               // Type 3
+    type = 3;
+    c = idx.map(i => Z[i][p - 1]);
+    zth = cadd(Z[p - 1][p - 1], zb);
+  } else {                                     // Type 4
+    type = 4;
+    c = idx.map(i => csub(Z[i][p - 1], Z[i][q - 1]));
+    zth = cadd(csub(cadd(Z[p - 1][p - 1], Z[q - 1][q - 1]), cmul(cx(2), Z[p - 1][q - 1])), zb);
+  }
+  if (cabs(zth) < 1e-12) return { error: 'This change would disconnect part of the network, so the Z-bus does not exist. No change made.' };
+  for (let a = 0; a < idx.length; a++)
+    for (let b = 0; b < idx.length; b++)
+      Z[idx[a]][idx[b]] = csub(Z[idx[a]][idx[b]], cdiv(cmul(c[a], c[b]), zth));
+  return { state: { Z, ex }, type, p, q, zb, zth };
+}
+
+// Build Z-bus element by element. Elements touching the network are added first, in entry order.
+function buildSteps(elements) {
+  let st = { Z: [], ex: [] };
+  const steps = [], pending = elements.slice();
+  const known = (b, ex) => b === 0 || (b <= ex.length && ex[b - 1]);
+  while (pending.length) {
+    const k = pending.findIndex(e => known(e.p, st.ex) || known(e.q, st.ex));
+    if (k < 0) break;
+    const e = pending.splice(k, 1)[0];
+    const res = modify(st, e.p, e.q, e.z);
+    if (res.error) return { steps, skipped: [e, ...pending], error: `Element ${e.n}: ${res.error}` };
+    const prev = st;
+    st = res.state;
+    steps.push({ kind: 'build', el: e, res, prev, state: st });
+  }
+  return { steps, skipped: pending };
+}
+
+/* =================== END CORE =================== */
+
+/* ===================== UI ===================== */
+const $ = id => document.getElementById(id);
+let rows = [
+  { p: '1', q: '0', z: '1.25j' },
+  { p: '1', q: '2', z: '0.25j' },
+  { p: '2', q: '3', z: '0.4j' },
+  { p: '3', q: '0', z: '1.25j' },
+  { p: '3', q: '4', z: '0.125j' },
+];
+let timeline = [];     // build steps then changes
+let selected = -1;
+
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const parseBus = s => { const t = String(s).trim(); return /^\d+$/.test(t) ? Number(t) : NaN; };
+
+function renderRows() {
+  $('rows').innerHTML = rows.map((r, i) => `
+    <tr>
+      <td class="n">${i + 1}</td>
+      <td><input class="bus-in" inputmode="numeric" data-i="${i}" data-k="p" value="${esc(r.p)}" aria-label="Element ${i + 1} from bus"></td>
+      <td><input class="bus-in" inputmode="numeric" data-i="${i}" data-k="q" value="${esc(r.q)}" aria-label="Element ${i + 1} to bus"></td>
+      <td><input data-i="${i}" data-k="z" value="${esc(r.z)}" aria-label="Element ${i + 1} impedance"></td>
+      <td><button class="del" type="button" data-del="${i}" aria-label="Remove element ${i + 1}">×</button></td>
+    </tr>`).join('');
+  updateCount();
+}
+function updateCount() {
+  const buses = new Set();
+  rows.forEach(r => { [r.p, r.q].forEach(b => { const n = parseBus(b); if (n > 0) buses.add(n); }); });
+  $('count').textContent = `${buses.size} buses, ${rows.length} elements`;
+}
+$('rows').addEventListener('input', e => {
+  const t = e.target; if (!t.dataset.k) return;
+  rows[+t.dataset.i][t.dataset.k] = t.value; t.classList.remove('bad'); updateCount();
+});
+$('rows').addEventListener('click', e => {
+  const i = e.target.dataset.del; if (i == null) return;
+  rows.splice(+i, 1); renderRows();
+});
+$('addRow').onclick = () => {
+  rows.push({ p: '', q: '', z: '' }); renderRows();
+  $('rows').querySelector(`input[data-i="${rows.length - 1}"]`).focus();
+};
+$('clear').onclick = () => { rows = [{ p: '', q: '', z: '' }]; renderRows(); };
+
+function build() {
+  const msg = $('buildMsg'); msg.className = 'msg'; msg.textContent = '';
+  const elements = []; let bad = false;
+  rows.forEach((r, i) => {
+    if (!r.p.trim() && !r.q.trim() && !r.z.trim()) return;
+    const p = parseBus(r.p), q = parseBus(r.q), z = parseZ(r.z);
+    const mark = (k, ok) => { if (!ok) { bad = true; $('rows').querySelector(`input[data-i="${i}"][data-k="${k}"]`).classList.add('bad'); } };
+    mark('p', !isNaN(p)); mark('q', !isNaN(q)); mark('z', z && cabs(z) > 1e-12);
+    if (!isNaN(p) && !isNaN(q) && p === q) { mark('q', false); }
+    if (!bad) elements.push({ n: i + 1, p, q, z });
+  });
+  if (bad) { msg.className = 'msg err'; msg.textContent = 'Fix the highlighted entries. Buses are whole numbers (0 = reference) and the impedance must be non-zero.'; return; }
+  if (!elements.length) { msg.className = 'msg err'; msg.textContent = 'Add at least one element.'; return; }
+  if (!elements.some(e => e.p === 0 || e.q === 0)) { msg.className = 'msg err'; msg.textContent = 'Connect at least one element to the reference bus 0.'; return; }
+  const out = buildSteps(elements);
+  if (out.error) { msg.className = 'msg err'; msg.textContent = out.error; return; }
+  if (out.skipped.length) { msg.className = 'msg err'; msg.textContent = `Element ${out.skipped.map(e => e.n).join(', ')} is not connected to the rest of the network and was left out.`; }
+  else { msg.className = 'msg ok'; msg.textContent = `Z-bus built in ${out.steps.length} steps.`; }
+  timeline = out.steps;
+  selected = timeline.length - 1;
+  $('apply').disabled = false;
+  renderAll(true);
+}
+$('build').onclick = build;
+
+function applyChange() {
+  const msg = $('chgMsg'); msg.className = 'msg err'; msg.textContent = '';
+  if (!timeline.length) { msg.textContent = 'Build the Z-bus first.'; return; }
+  const last = timeline[timeline.length - 1];
+  const p = parseBus($('cp').value), q = parseBus($('cq').value), z = parseZ($('cz').value);
+  if (isNaN(p) || isNaN(q)) { msg.textContent = 'Enter both bus numbers, with 0 for the reference.'; return; }
+  if (!z) { msg.textContent = 'Enter the impedance, written like 0.25j or 0.1+0.2j.'; return; }
+  const res = modify(last.state, p, q, z);
+  if (res.error) { msg.textContent = res.error; return; }
+  timeline.push({ kind: 'change', el: { n: null, p, q, z }, res, prev: last.state, state: res.state });
+  selected = timeline.length - 1;
+  msg.className = 'msg ok';
+  msg.textContent = `Classified as Type ${res.type}.`;
+  renderAll(true);
+}
+$('apply').onclick = applyChange;
+['cp', 'cq', 'cz'].forEach(id => $(id).addEventListener('keydown', e => { if (e.key === 'Enter') applyChange(); }));
+
+function stepText(s) {
+  const { p, q } = s.el;
+  const a = p === 0 ? 'ref' : 'bus ' + p, b = q === 0 ? 'ref' : 'bus ' + q;
+  if (s.kind === 'build') return `Element ${s.el.n}: ${a} to ${b}, ${fmt(s.el.z)}`;
+  return `${a.charAt(0).toUpperCase() + a.slice(1)} to ${b}, ${fmt(s.el.z)}`;
+}
+
+function renderSteps() {
+  const build = [], chg = [];
+  timeline.forEach((s, i) => (s.kind === 'build' ? build : chg).push([s, i]));
+  const li = ([s, i], k) => `<li><button type="button" data-step="${i}" ${i === selected ? 'aria-current="true"' : ''}>
+      <span class="k">${k + 1}</span><span class="t">Type ${s.res.type}</span><span>${esc(stepText(s))}</span></button></li>`;
+  $('steps').innerHTML = !timeline.length ? '<p class="empty">Build the Z-bus to see each step here.</p>' :
+    `<h3>Building</h3><ol class="steps-list">${build.map(li).join('')}</ol>` +
+    `<h3>Changes</h3>` + (chg.length ? `<ol class="steps-list">${chg.map(li).join('')}</ol>` : '<p class="empty">No changes yet.</p>');
+}
+$('steps').addEventListener('click', e => {
+  const b = e.target.closest('button[data-step]'); if (!b) return;
+  selected = +b.dataset.step; renderAll(true);
+});
+
+function renderVerdict() {
+  const v = $('verdict');
+  if (selected < 0) { v.innerHTML = '<p class="type none">Build the Z-bus to begin.</p>'; return; }
+  const s = timeline[selected], r = s.res;
+  const buildCount = timeline.filter(t => t.kind === 'build').length;
+  const where = s.kind === 'build' ? `Building, step ${selected + 1} of ${buildCount}` : `Change ${selected - buildCount + 1}`;
+  const P = r.p, Q = r.q;
+  let desc = {
+    1: `New bus ${Q} connected to the reference.`,
+    2: `New bus ${Q} connected to existing bus ${P}.`,
+    3: `Existing bus ${P} connected to the reference.`,
+    4: `Element between existing buses ${P} and ${Q}.`,
+  }[r.type];
+  const sb = x => `<sub>${x}</sub>`;
+  const f = {
+    1: `Z${sb(Q + "" + Q)} = Z${sb('b')} = <b>${fmt(r.zb)}</b><br>Row and column ${Q} are zero elsewhere.`,
+    2: `Row and column ${Q} copy row and column ${P}.<br>Z${sb(Q + '' + Q)} = Z${sb(P + '' + P)} + Z${sb('b')} = <b>${fmt(r.state.Z[Q - 1][Q - 1])}</b>`,
+    3: `Z${sb('new')} = Z − Z${sb('(:,' + P + ')')}Z${sb('(' + P + ',:)')} / (Z${sb(P + '' + P)} + Z${sb('b')})<br>Z${sb(P + '' + P)} + Z${sb('b')} = <b>${r.zth ? fmt(r.zth) : ''}</b>`,
+    4: `Z${sb('new')} = Z − ΔΔ<sup>T</sup> / Z${sb('th')}<br>Δ = Z${sb('(:,' + P + ')')} − Z${sb('(:,' + Q + ')')}<br>Z${sb('th')} = Z${sb(P + '' + P)} + Z${sb(Q + '' + Q)} − 2Z${sb(P + '' + Q)} + Z${sb('b')} = <b>${r.zth ? fmt(r.zth) : ''}</b>`,
+  }[r.type];
+  v.innerHTML = `<p class="where">${where}</p><p class="type">Type ${r.type}</p><p class="desc">${desc}</p><p class="formula">${f}</p>`;
+}
+
+function renderMatrix(flash) {
+  const t = $('ztab');
+  if (selected < 0) { t.innerHTML = ''; $('zcap').textContent = ''; return; }
+  const s = timeline[selected], Z = s.state.Z, prev = s.prev;
+  const idx = []; s.state.ex.forEach((e, i) => { if (e) idx.push(i); });
+  const isNew = i => !(prev.ex[i]);
+  let h = '<thead><tr><th></th>' + idx.map(j => `<th scope="col">Bus ${j + 1}</th>`).join('') + '</tr></thead><tbody>';
+  for (const i of idx) {
+    h += `<tr><th scope="row">Bus ${i + 1}</th>`;
+    for (const j of idx) {
+      let cls = '';
+      if (isNew(i) || isNew(j)) cls = 'new';
+      else if (cabs(csub(Z[i][j], prev.Z[i][j])) > 1e-12) cls = 'chg' + (flash ? ' flash' : '');
+      h += `<td class="${cls}">${fmt(Z[i][j])}</td>`;
+    }
+    h += '</tr>';
+  }
+  t.innerHTML = h + '</tbody>';
+  $('zcap').textContent = `${idx.length} × ${idx.length}, after ${s.kind === 'build' ? 'building step ' + (selected + 1) : 'change ' + (selected - timeline.filter(x => x.kind === 'build').length + 1)}`;
+}
+
+function renderAll(flash) { renderSteps(); renderVerdict(); renderMatrix(flash); }
+
+renderRows();
+build();
+</script>
+</body>
+</html>
